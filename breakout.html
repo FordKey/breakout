@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Breakout Game with SVG</title>
+    <style>
+        #gameContainer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+        }
+        #gameSVG {
+            border: 1px solid black;
+            background-color: #fff;
+        }
+        .button {
+            margin-top: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        #newGameButton {
+            background-color: #4CAF50;
+        }
+        #newGameButton:hover {
+            background-color: #45a049;
+        }
+        #level2Button {
+            background-color: #ff9800;
+            display: none; /* Hidden until win */
+        }
+        #level2Button:hover {
+            background-color: #e68a00;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <svg id="gameSVG" width="600" height="400"></svg>
+        <button id="newGameButton" class="button">New Game</button>
+        <button id="level2Button" class="button">Play Level 2</button>
+    </div>
+
+    <script>
+        class Breakout {
+            constructor() {
+                this.width = 600;
+                this.height = 400;
+                this.svg = document.getElementById('gameSVG');
+                this.paddleWidth = 96;
+                this.paddleHeight = 10;
+                this.ballRadius = 12;
+                this.brickWidth = 60;
+                this.brickHeight = 20;
+                
+                this.pastelColors = [
+                    '#FFB3BA', '#BAFFC9', '#BAE1FF', '#FFFFBA', '#FFDFBA'
+                ];
+
+                this.level = 1; // Track current level
+                this.resetGame();
+                this.handleInput();
+                this.setupButtons();
+                this.play();
+            }
+
+            resetGame() {
+                this.paddlePos = this.width / 2 - this.paddleWidth / 2;
+                this.ballPos = { x: this.width / 2, y: this.height - 30 };
+                this.ballDir = { x: 4, y: -4 };
+                this.score = 0;
+                this.gameOver = false;
+                this.won = false; // Track win state
+                this.bricks = [];
+                this.svg.innerHTML = '';
+                this.initGame();
+                document.getElementById('level2Button').style.display = 'none'; // Hide Level 2 button
+            }
+
+            initGame() {
+                const rows = this.level === 1 ? 3 : 4; // 3 rows for Level 1, 4 for Level 2
+                const cols = Math.floor(this.width / this.brickWidth);
+                for (let y = 0; y < rows; y++) {
+                    for (let x = 0; x < cols; x++) {
+                        const brick = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                        brick.setAttribute("x", x * this.brickWidth);
+                        brick.setAttribute("y", y * this.brickHeight);
+                        brick.setAttribute("width", this.brickWidth - 2);
+                        brick.setAttribute("height", this.brickHeight - 2);
+                        const color = this.pastelColors[Math.floor(Math.random() * this.pastelColors.length)];
+                        brick.setAttribute("fill", color);
+                        brick.setAttribute("stroke", "#888");
+                        this.svg.appendChild(brick);
+                        this.bricks.push(brick);
+                    }
+                }
+
+                this.paddle = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                this.paddle.setAttribute("x", this.paddlePos);
+                this.paddle.setAttribute("y", this.height - this.paddleHeight);
+                this.paddle.setAttribute("width", this.paddleWidth);
+                this.paddle.setAttribute("height", this.paddleHeight);
+                this.paddle.setAttribute("fill", "#4444ff");
+                this.svg.appendChild(this.paddle);
+
+                this.ball = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                this.ball.setAttribute("cx", this.ballPos.x);
+                this.ball.setAttribute("cy", this.ballPos.y);
+                this.ball.setAttribute("r", this.ballRadius);
+                this.ball.setAttribute("fill", "#000080");
+                this.svg.appendChild(this.ball);
+
+                this.scoreText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                this.scoreText.setAttribute("x", "10");
+                this.scoreText.setAttribute("y", "20");
+                this.scoreText.setAttribute("fill", "#000");
+                this.scoreText.textContent = `Score: ${this.score} | Level: ${this.level}`;
+                this.svg.appendChild(this.scoreText);
+            }
+
+            isValidPos(x, y) {
+                return x >= 0 && x < this.width && y >= 0 && y < this.height;
+            }
+
+            update() {
+                if (this.won) return; // Stop updating if won
+
+                let nextX = this.ballPos.x + this.ballDir.x;
+                let nextY = this.ballPos.y + this.ballDir.y;
+
+                if (nextX - this.ballRadius < 0) {
+                    nextX = this.ballRadius;
+                    this.ballDir.x *= -1;
+                } else if (nextX + this.ballRadius > this.width) {
+                    nextX = this.width - this.ballRadius;
+                    this.ballDir.x *= -1;
+                }
+
+                if (nextY - this.ballRadius < 0) {
+                    nextY = this.ballRadius;
+                    this.ballDir.y *= -1;
+                }
+
+                if (nextY + this.ballRadius >= this.height - this.paddleHeight &&
+                    nextX >= this.paddlePos && 
+                    nextX <= this.paddlePos + this.paddleWidth) {
+                    nextY = this.height - this.paddleHeight - this.ballRadius;
+                    this.ballDir.y *= -1;
+                }
+
+                for (let i = this.bricks.length - 1; i >= 0; i--) {
+                    const brick = this.bricks[i];
+                    const bx = parseFloat(brick.getAttribute("x"));
+                    const by = parseFloat(brick.getAttribute("y"));
+                    if (nextX >= bx && nextX <= bx + this.brickWidth - 2 &&
+                        nextY >= by && nextY <= by + this.brickHeight - 2) {
+                        this.bricks.splice(i, 1);
+                        this.svg.removeChild(brick);
+                        if (this.ballPos.y < by) {
+                            nextY = by - this.ballRadius;
+                            this.ballDir.y = -Math.abs(this.ballDir.y);
+                        } else if (this.ballPos.y > by + this.brickHeight - 2) {
+                            nextY = by + this.brickHeight - 2 + this.ballRadius;
+                            this.ballDir.y = Math.abs(this.ballDir.y);
+                        } else if (this.ballPos.x < bx) {
+                            nextX = bx - this.ballRadius;
+                            this.ballDir.x = -Math.abs(this.ballDir.x);
+                        } else {
+                            nextX = bx + this.brickWidth - 2 + this.ballRadius;
+                            this.ballDir.x = Math.abs(this.ballDir.x);
+                        }
+                        this.score += 10;
+                        this.scoreText.textContent = `Score: ${this.score} | Level: ${this.level}`;
+                        break;
+                    }
+                }
+
+                if (this.bricks.length === 0) {
+                    this.won = true;
+                    return;
+                }
+
+                if (nextY + this.ballRadius > this.height) {
+                    this.gameOver = true;
+                    return;
+                }
+
+                this.ballPos.x = nextX;
+                this.ballPos.y = nextY;
+                this.ball.setAttribute("cx", this.ballPos.x);
+                this.ball.setAttribute("cy", this.ballPos.y);
+            }
+
+            handleInput() {
+                document.addEventListener("keydown", (e) => {
+                    if (e.key === "ArrowLeft" && this.paddlePos > 0) {
+                        this.paddlePos -= 40;
+                        this.paddle.setAttribute("x", this.paddlePos);
+                    }
+                    if (e.key === "ArrowRight" && this.paddlePos < this.width - this.paddleWidth) {
+                        this.paddlePos += 40;
+                        this.paddle.setAttribute("x", this.paddlePos);
+                    }
+                });
+            }
+
+            setupButtons() {
+                const newGameButton = document.getElementById('newGameButton');
+                const level2Button = document.getElementById('level2Button');
+
+                newGameButton.addEventListener('click', () => {
+                    this.level = 1; // Reset to Level 1
+                    this.resetGame();
+                    this.gameOver = false;
+                    this.won = false;
+                    this.play();
+                });
+
+                level2Button.addEventListener('click', () => {
+                    this.level = 2; // Set to Level 2
+                    this.resetGame();
+                    this.gameOver = false;
+                    this.won = false;
+                    this.play();
+                    level2Button.style.display = 'none'; // Hide after clicking
+                });
+            }
+
+            play() {
+                const gameLoop = setInterval(() => {
+                    if (!this.gameOver && !this.won) {
+                        this.update();
+                    } else {
+                        clearInterval(gameLoop);
+                        if (this.won) {
+                            const winText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                            winText.setAttribute("x", this.width / 2 - 50);
+                            winText.setAttribute("y", this.height / 2);
+                            winText.setAttribute("fill", "#00cc00");
+                            winText.textContent = "You Won!";
+                            this.svg.appendChild(winText);
+                            document.getElementById('level2Button').style.display = 'block'; // Show Level 2 button
+                        } else {
+                            const gameOverText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                            gameOverText.setAttribute("x", this.width / 2 - 50);
+                            gameOverText.setAttribute("y", this.height / 2);
+                            gameOverText.setAttribute("fill", "#ff0000");
+                            gameOverText.textContent = "Game Over!";
+                            this.svg.appendChild(gameOverText);
+                        }
+                    }
+                }, 1000 / 60);
+            }
+        }
+
+        const game = new Breakout();
+    </script>
+</body>
+</html>
